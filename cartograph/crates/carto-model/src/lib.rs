@@ -13,7 +13,8 @@ pub type FileId = i64;
 pub type SymbolId = i64;
 
 /// Tiered hydration level (H1). Tier-2 (full body) is read live, never stored.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+/// Ordered so `tier >= Tier::Signature` reads naturally.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum Tier {
     /// One-line purpose per file (`files.purpose`).

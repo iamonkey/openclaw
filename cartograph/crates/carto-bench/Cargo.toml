@@ -12,4 +12,6 @@ path = "src/main.rs"
 carto-core = { workspace = true }
 carto-model = { workspace = true }
 anyhow = { workspace = true }
+serde = { workspace = true }
 serde_json = { workspace = true }
+walkdir = { workspace = true }

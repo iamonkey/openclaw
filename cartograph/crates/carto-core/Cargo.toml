@@ -10,3 +10,4 @@ carto-store = { workspace = true }
 carto-parse = { workspace = true }
 anyhow = { workspace = true }
 ignore = { workspace = true }
+blake3 = { workspace = true }
