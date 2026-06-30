@@ -53,11 +53,9 @@ impl Store {
     pub fn generation(&self) -> Result<i64> {
         let v: Option<String> = self
             .conn
-            .query_row(
-                "SELECT value FROM meta WHERE key = 'generation'",
-                [],
-                |r| r.get(0),
-            )
+            .query_row("SELECT value FROM meta WHERE key = 'generation'", [], |r| {
+                r.get(0)
+            })
             .optional()?;
         Ok(v.and_then(|s| s.parse().ok()).unwrap_or(0))
     }
@@ -154,12 +152,7 @@ impl Store {
                 // Tier-1 skeleton: signature + optional doc.
                 let text = render_skeleton(rs);
                 let token_est = estimate_tokens(&text);
-                insert_skel.execute(params![
-                    sym_id,
-                    Tier::Signature.as_i64(),
-                    text,
-                    token_est
-                ])?;
+                insert_skel.execute(params![sym_id, Tier::Signature.as_i64(), text, token_est])?;
             }
 
             // Insert raw_refs, mapping src_idx -> the new symbol id.
@@ -176,12 +169,7 @@ impl Store {
                         symbols.len()
                     )
                 })?;
-                insert_ref.execute(params![
-                    src_id,
-                    r.target_name,
-                    r.kind.as_str(),
-                    generation
-                ])?;
+                insert_ref.execute(params![src_id, r.target_name, r.kind.as_str(), generation])?;
             }
         }
 
@@ -216,9 +204,9 @@ impl Store {
     // ── Symbol reads ────────────────────────────────────────────────────────
 
     pub fn symbols_in_file(&self, file_id: FileId) -> Result<Vec<Symbol>> {
-        let mut stmt = self
-            .conn
-            .prepare(&format!("{SYMBOL_SELECT} WHERE file_id = ?1 ORDER BY start_byte ASC"))?;
+        let mut stmt = self.conn.prepare(&format!(
+            "{SYMBOL_SELECT} WHERE file_id = ?1 ORDER BY start_byte ASC"
+        ))?;
         let rows = stmt.query_map(params![file_id], row_to_symbol)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
@@ -356,10 +344,13 @@ impl Store {
         // Collect raw refs first to avoid holding a read statement open while we
         // run grouped lookups + inserts.
         let raw: Vec<(SymbolId, String, String)> = {
-            let mut stmt =
-                tx.prepare("SELECT src_id, target_name, kind FROM raw_refs")?;
+            let mut stmt = tx.prepare("SELECT src_id, target_name, kind FROM raw_refs")?;
             let rows = stmt.query_map([], |r| {
-                Ok((r.get::<_, SymbolId>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                Ok((
+                    r.get::<_, SymbolId>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                ))
             })?;
             rows.collect::<rusqlite::Result<Vec<_>>>()?
         };
@@ -376,8 +367,7 @@ impl Store {
             for (src_id, target_name, kind) in raw {
                 // Candidate def symbols sharing the referenced name.
                 let candidates: Vec<SymbolId> = {
-                    let mut stmt =
-                        tx.prepare("SELECT id FROM symbols WHERE name = ?1")?;
+                    let mut stmt = tx.prepare("SELECT id FROM symbols WHERE name = ?1")?;
                     let rows = stmt.query_map(params![target_name], |r| r.get(0))?;
                     rows.collect::<rusqlite::Result<Vec<_>>>()?
                 };
@@ -396,9 +386,8 @@ impl Store {
                     many => {
                         for dst in many {
                             if *dst != src_id {
-                                insert_edge.execute(params![
-                                    src_id, dst, kind, 0i64, generation
-                                ])?;
+                                insert_edge
+                                    .execute(params![src_id, dst, kind, 0i64, generation])?;
                             }
                         }
                     }
@@ -434,7 +423,9 @@ impl Store {
 
     /// All symbol ids (for PageRank seeding).
     pub fn all_symbol_ids(&self) -> Result<Vec<SymbolId>> {
-        let mut stmt = self.conn.prepare("SELECT id FROM symbols ORDER BY id ASC")?;
+        let mut stmt = self
+            .conn
+            .prepare("SELECT id FROM symbols ORDER BY id ASC")?;
         let rows = stmt.query_map([], |r| r.get(0))?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }

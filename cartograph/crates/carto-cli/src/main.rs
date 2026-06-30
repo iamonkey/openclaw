@@ -78,8 +78,8 @@ fn main() -> Result<()> {
             );
         }
         Cmd::Query { tool } => {
-            let reader = IndexReader::open(&db, &root)
-                .context("open index (did you run `carto index`?)")?;
+            let reader =
+                IndexReader::open(&db, &root).context("open index (did you run `carto index`?)")?;
             let json = run_tool(&reader, tool)?;
             println!("{}", serde_json::to_string_pretty(&json)?);
         }

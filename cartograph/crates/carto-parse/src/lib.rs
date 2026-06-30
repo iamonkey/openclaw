@@ -119,8 +119,13 @@ impl<'a> Extractor<'a> {
     fn handle_decl(&mut self, decl: Node, parent_idx: Option<usize>, container_path: &[&str]) {
         match decl.kind() {
             "function_declaration" | "generator_function_declaration" => {
-                let idx =
-                    self.emit_named(decl, "name", SymbolKind::Function, parent_idx, container_path);
+                let idx = self.emit_named(
+                    decl,
+                    "name",
+                    SymbolKind::Function,
+                    parent_idx,
+                    container_path,
+                );
                 if let Some(i) = idx {
                     self.scan_refs(decl, Some(i));
                 }
@@ -129,8 +134,13 @@ impl<'a> Extractor<'a> {
                 self.handle_class(decl, parent_idx, container_path);
             }
             "interface_declaration" => {
-                let idx =
-                    self.emit_named(decl, "name", SymbolKind::Interface, parent_idx, container_path);
+                let idx = self.emit_named(
+                    decl,
+                    "name",
+                    SymbolKind::Interface,
+                    parent_idx,
+                    container_path,
+                );
                 if let Some(i) = idx {
                     self.scan_type_refs_in(decl, Some(i));
                 }
@@ -230,9 +240,16 @@ impl<'a> Extractor<'a> {
             }
             let value = declarator.child_by_field_name("value");
             let is_fn = value.is_some_and(|v| {
-                matches!(v.kind(), "arrow_function" | "function" | "function_expression")
+                matches!(
+                    v.kind(),
+                    "arrow_function" | "function" | "function_expression"
+                )
             });
-            let kind = if is_fn { SymbolKind::Function } else { SymbolKind::Const };
+            let kind = if is_fn {
+                SymbolKind::Function
+            } else {
+                SymbolKind::Const
+            };
 
             let name = self.text(name_node).to_string();
             // Signature spans the whole declaration up to the value body.
@@ -662,7 +679,12 @@ fn file_purpose(root: Node, bytes: &[u8]) -> Option<String> {
         .unwrap_or(cleaned);
     let mut out = sentence.trim().to_string();
     if out.chars().count() > 120 {
-        out = out.chars().take(120).collect::<String>().trim_end().to_string();
+        out = out
+            .chars()
+            .take(120)
+            .collect::<String>()
+            .trim_end()
+            .to_string();
     }
     Some(out)
 }
@@ -682,7 +704,10 @@ mod tests {
     #[test]
     fn detect_lang_extensions() {
         for ext in ["ts", "tsx", "mts", "cts"] {
-            assert_eq!(detect_lang(&format!("a.{ext}")).as_deref(), Some("typescript"));
+            assert_eq!(
+                detect_lang(&format!("a.{ext}")).as_deref(),
+                Some("typescript")
+            );
         }
         assert_eq!(detect_lang("a.rs"), None);
         assert_eq!(detect_lang("noext"), None);
@@ -728,11 +753,21 @@ export class ConfigLoader {
         let parse = sym(&pf, "parse");
         assert_eq!(parse.kind, SymbolKind::Method);
         // method nests under the class
-        let class_idx = pf.symbols.iter().position(|s| s.name == "ConfigLoader").unwrap();
+        let class_idx = pf
+            .symbols
+            .iter()
+            .position(|s| s.name == "ConfigLoader")
+            .unwrap();
         assert_eq!(parse.parent_idx, Some(class_idx));
-        assert_eq!(parse.stable_key, "src/config/load.ts#ConfigLoader/parse:method");
+        assert_eq!(
+            parse.stable_key,
+            "src/config/load.ts#ConfigLoader/parse:method"
+        );
         assert_eq!(parse.fqn.as_deref(), Some("ConfigLoader.parse"));
-        assert_eq!(parse.signature.as_deref(), Some("parse(src: string): Config"));
+        assert_eq!(
+            parse.signature.as_deref(),
+            Some("parse(src: string): Config")
+        );
     }
 
     #[test]
@@ -774,7 +809,10 @@ const mul = (a: number, b: number): number => a * b;
     fn file_purpose_from_header() {
         let src = "/** Loads and validates config.toml. Layered. */\nexport const x = 1;\n";
         let pf = parse_file("src/config/load.ts", src);
-        assert_eq!(pf.purpose.as_deref(), Some("Loads and validates config.toml."));
+        assert_eq!(
+            pf.purpose.as_deref(),
+            Some("Loads and validates config.toml.")
+        );
     }
 
     #[test]
@@ -800,7 +838,10 @@ export function run(): void {
             .filter(|r| r.kind == EdgeKind::Call && r.src_idx == run_idx)
             .map(|r| r.target_name.as_str())
             .collect();
-        assert!(calls.contains(&"send"), "member call last segment: {calls:?}");
+        assert!(
+            calls.contains(&"send"),
+            "member call last segment: {calls:?}"
+        );
         assert!(calls.contains(&"helper"), "plain call: {calls:?}");
     }
 
@@ -826,7 +867,10 @@ export function use(): void {
         assert!(imports.contains(&"bar"), "alias original name: {imports:?}");
         assert!(imports.contains(&"Def"), "default import: {imports:?}");
         // imports here are attributed to the first top-level symbol (`use`).
-        assert!(pf.refs.iter().any(|r| r.kind == EdgeKind::Import && r.src_idx == use_idx));
+        assert!(pf
+            .refs
+            .iter()
+            .any(|r| r.kind == EdgeKind::Import && r.src_idx == use_idx));
     }
 
     #[test]
@@ -838,10 +882,9 @@ export function use(): void {
             .refs
             .iter()
             .any(|r| r.kind == EdgeKind::Inherit && r.target_name == "Base" && r.src_idx == c_idx));
-        assert!(pf
-            .refs
-            .iter()
-            .any(|r| r.kind == EdgeKind::Implement && r.target_name == "Iface" && r.src_idx == c_idx));
+        assert!(pf.refs.iter().any(|r| r.kind == EdgeKind::Implement
+            && r.target_name == "Iface"
+            && r.src_idx == c_idx));
     }
 
     #[test]
@@ -859,7 +902,10 @@ export function load(input: Config): Result {
             .filter(|r| r.kind == EdgeKind::TypeRef && r.src_idx == load_idx)
             .map(|r| r.target_name.as_str())
             .collect();
-        assert!(typerefs.contains(&"Config"), "param type captured: {typerefs:?}");
+        assert!(
+            typerefs.contains(&"Config"),
+            "param type captured: {typerefs:?}"
+        );
     }
 
     #[test]

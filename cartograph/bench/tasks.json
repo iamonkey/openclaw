@@ -1,0 +1,167 @@
+[
+  {
+    "id": "where-pagination",
+    "class": "where-is",
+    "query": "Where is result pagination (offset/limit slicing into pages) implemented?",
+    "answer_files": ["src/util/paginate.ts"],
+    "answer_symbols": ["src/util/paginate.ts#paginate:function"],
+    "notes": "Core slicing fn. localization@k ground truth; normalizePageRequest is a supporting symbol but paginate is the answer."
+  },
+  {
+    "id": "where-config-load",
+    "class": "where-is",
+    "query": "Where is application configuration loaded from environment variables and validated?",
+    "answer_files": ["src/config/load.ts"],
+    "answer_symbols": [
+      "src/config/load.ts#loadConfig:function",
+      "src/config/load.ts#validateConfig:function"
+    ],
+    "notes": "loadConfig merges defaults + env; validateConfig enforces cross-field invariants."
+  },
+  {
+    "id": "where-validation",
+    "class": "where-is",
+    "query": "Where is incoming task payload validation performed before it reaches storage?",
+    "answer_files": ["src/domain/validate.ts"],
+    "answer_symbols": [
+      "src/domain/validate.ts#validateNewTask:function",
+      "src/domain/validate.ts#validateTaskPatch:function"
+    ],
+    "notes": "Returns Result<NewTaskInput, DomainError>."
+  },
+  {
+    "id": "where-repo-create",
+    "class": "where-is",
+    "query": "Where are tasks stored and created in the in-memory repository?",
+    "answer_files": ["src/repo/memory.ts"],
+    "answer_symbols": [
+      "src/repo/memory.ts#InMemoryTaskRepository:class",
+      "src/repo/memory.ts#InMemoryTaskRepository/create:method"
+    ],
+    "notes": "Central storage hub keyed by id."
+  },
+  {
+    "id": "where-status-transitions",
+    "class": "where-is",
+    "query": "Where is the task lifecycle state machine that decides allowed status transitions?",
+    "answer_files": ["src/domain/task.ts"],
+    "answer_symbols": [
+      "src/domain/task.ts#canTransition:function",
+      "src/domain/task.ts#VALID_TRANSITIONS:variable"
+    ],
+    "notes": "canTransition consults the VALID_TRANSITIONS table."
+  },
+  {
+    "id": "where-search-index",
+    "class": "where-is",
+    "query": "Where is the full-text inverted-index search over task titles, descriptions, and tags implemented?",
+    "answer_files": ["src/domain/search.ts"],
+    "answer_symbols": [
+      "src/domain/search.ts#SearchIndex:class",
+      "src/domain/search.ts#SearchIndex/search:method"
+    ],
+    "notes": "tokenize + postings map; service layer keeps it synced."
+  },
+  {
+    "id": "where-error-status-map",
+    "class": "where-is",
+    "query": "Where are domain error codes mapped to HTTP status codes?",
+    "answer_files": ["src/domain/errors.ts"],
+    "answer_symbols": ["src/domain/errors.ts#statusForError:function"],
+    "notes": "Consumed by http/respond.ts errorResponse."
+  },
+  {
+    "id": "where-router-dispatch",
+    "class": "where-is",
+    "query": "Where does the router match a request path to a handler and extract path params?",
+    "answer_files": ["src/http/router.ts"],
+    "answer_symbols": [
+      "src/http/router.ts#Router/handle:method",
+      "src/http/router.ts#matchSegments:function"
+    ],
+    "notes": "matchSegments fills req.params; handle dispatches."
+  },
+  {
+    "id": "impact-paginate-callers",
+    "class": "what-breaks",
+    "query": "If I change the signature or return shape of the paginate() function, what else needs to change?",
+    "answer_files": [
+      "src/util/paginate.ts",
+      "src/repo/memory.ts",
+      "src/repo/audit.ts",
+      "src/http/stats_handler.ts"
+    ],
+    "answer_symbols": [
+      "src/util/paginate.ts#paginate:function",
+      "src/repo/memory.ts#InMemoryTaskRepository/list:method",
+      "src/repo/audit.ts#AuditTrail/list:method",
+      "src/http/stats_handler.ts#makeStatsHandler:function"
+    ],
+    "notes": "Direct callers of paginate(): repo.list, audit.list, and stats handler reads a page. Impact/co-change ground truth."
+  },
+  {
+    "id": "impact-task-interface",
+    "class": "what-breaks",
+    "query": "If I add a required field to the Task interface, which modules that build or read Task objects must change?",
+    "answer_files": [
+      "src/domain/task.ts",
+      "src/domain/stats.ts",
+      "src/domain/search.ts",
+      "src/repo/seed.ts"
+    ],
+    "answer_symbols": [
+      "src/domain/task.ts#Task:interface",
+      "src/domain/task.ts#createTask:function",
+      "src/domain/stats.ts#computeStats:function",
+      "src/domain/search.ts#termsForTask:function"
+    ],
+    "notes": "createTask constructs Task; stats and search read its fields; seed builds via createTask."
+  },
+  {
+    "id": "impact-result-type",
+    "class": "what-breaks",
+    "query": "What depends on the Result type and its ok/err/isErr helpers such that changing them ripples widely?",
+    "answer_files": [
+      "src/util/result.ts",
+      "src/domain/validate.ts",
+      "src/repo/memory.ts",
+      "src/http/handlers.ts",
+      "src/config/load.ts"
+    ],
+    "answer_symbols": [
+      "src/util/result.ts#Result:type",
+      "src/util/result.ts#isErr:function",
+      "src/repo/memory.ts#InMemoryTaskRepository:class",
+      "src/http/handlers.ts#makeTaskHandlers:function"
+    ],
+    "notes": "Result threads through validators, repo, and handlers; high fan-in symbol."
+  },
+  {
+    "id": "impact-domain-error",
+    "class": "what-breaks",
+    "query": "If I add a new DomainErrorCode, which files must be updated to handle it end to end?",
+    "answer_files": ["src/domain/errors.ts", "src/http/respond.ts"],
+    "answer_symbols": [
+      "src/domain/errors.ts#DomainErrorCode:type",
+      "src/domain/errors.ts#statusForError:function",
+      "src/http/respond.ts#errorResponse:function"
+    ],
+    "notes": "statusForError switch and the response envelope must learn the new code."
+  },
+  {
+    "id": "bug-pagination-offbyone",
+    "class": "bug-localize",
+    "query": "Listing tasks drops the last item of every page; a page that should contain 10 items returns only 9. Find the bug.",
+    "answer_files": ["src/util/paginate.ts"],
+    "answer_symbols": ["src/util/paginate.ts#paginate:function"],
+    "notes": "Deliberate off-by-one: end = start + pageSize - 1 (should be start + pageSize). paginate.test.ts encodes the intended behavior."
+  },
+  {
+    "id": "bug-pagination-via-list",
+    "class": "bug-localize",
+    "query": "The GET /tasks endpoint returns one fewer task than requested per page even though totalItems is correct. Where is the root cause?",
+    "answer_files": ["src/util/paginate.ts"],
+    "answer_symbols": ["src/util/paginate.ts#paginate:function"],
+    "notes": "Symptom surfaces via repo.list -> paginate, but root cause is the slice end in paginate(). Tests the agent following the call chain to the leaf bug, not stopping at the handler."
+  }
+]

@@ -42,17 +42,56 @@ struct TaskResult {
 
 const TOPK: usize = 10;
 const STOPWORDS: &[&str] = &[
-    "where", "what", "which", "when", "does", "done", "the", "this", "that", "implemented",
-    "implementation", "breaks", "break", "change", "changed", "changes", "how", "are", "and", "for",
-    "with", "into", "from", "result", "results", "function", "method", "class", "used", "use",
-    "uses", "called", "call", "calls", "happen", "happens", "code", "logic",
+    "where",
+    "what",
+    "which",
+    "when",
+    "does",
+    "done",
+    "the",
+    "this",
+    "that",
+    "implemented",
+    "implementation",
+    "breaks",
+    "break",
+    "change",
+    "changed",
+    "changes",
+    "how",
+    "are",
+    "and",
+    "for",
+    "with",
+    "into",
+    "from",
+    "result",
+    "results",
+    "function",
+    "method",
+    "class",
+    "used",
+    "use",
+    "uses",
+    "called",
+    "call",
+    "calls",
+    "happen",
+    "happens",
+    "code",
+    "logic",
 ];
 
 fn main() -> Result<()> {
     let mut args = std::env::args().skip(1);
-    let corpus = PathBuf::from(args.next().unwrap_or_else(|| "cartograph/bench/corpus".into()));
-    let tasks_path =
-        PathBuf::from(args.next().unwrap_or_else(|| "cartograph/bench/tasks.json".into()));
+    let corpus = PathBuf::from(
+        args.next()
+            .unwrap_or_else(|| "cartograph/bench/corpus".into()),
+    );
+    let tasks_path = PathBuf::from(
+        args.next()
+            .unwrap_or_else(|| "cartograph/bench/tasks.json".into()),
+    );
     let out_dir = PathBuf::from(args.next().unwrap_or_else(|| "cartograph/bench".into()));
 
     let corpus = corpus.canonicalize().context("corpus path")?;
@@ -195,10 +234,17 @@ fn main() -> Result<()> {
     let report_path = out_dir.join("REPORT.md");
     std::fs::write(&report_path, &report)?;
     let results_json = out_dir.join("results.json");
-    std::fs::write(&results_json, results_to_json(&results, index_ms, &latencies_ms))?;
+    std::fs::write(
+        &results_json,
+        results_to_json(&results, index_ms, &latencies_ms),
+    )?;
 
     println!("{report}");
-    println!("\nwrote {} and {}", report_path.display(), results_json.display());
+    println!(
+        "\nwrote {} and {}",
+        report_path.display(),
+        results_json.display()
+    );
     Ok(())
 }
 
@@ -301,13 +347,17 @@ fn render_report(
     s.push_str(&format!("| full-corpus tokens (est) | {corpus_tokens} |\n"));
     s.push_str(&format!("| symbols indexed | {} |\n", stats.symbols));
     s.push_str(&format!("| edges resolved | {} |\n", stats.edges_resolved));
-    s.push_str(&format!("| index build time | {index_ms:.1} ms (full build) |\n\n"));
+    s.push_str(&format!(
+        "| index build time | {index_ms:.1} ms (full build) |\n\n"
+    ));
 
     s.push_str("## Headline: token cost vs naive grep + full-file\n\n");
     s.push_str(&format!(
         "- **Overall token reduction: {overall_reduction:.1}%** ({sum_base} baseline -> {sum_carto} Cartograph tokens across {total} tasks)\n"
     ));
-    s.push_str(&format!("- Mean per-task reduction: {mean_reduction:.1}%\n"));
+    s.push_str(&format!(
+        "- Mean per-task reduction: {mean_reduction:.1}%\n"
+    ));
     s.push_str(&format!(
         "- Context precision: Cartograph reads {} of what naive reads\n\n",
         if sum_base > 0 {
@@ -330,9 +380,7 @@ fn render_report(
 
     s.push_str("## Sync overhead (SO)\n\n");
     s.push_str("| metric | value | gate |\n|---|---|---|\n");
-    s.push_str(&format!(
-        "| query latency p50 | {p50:.2} ms | - |\n"
-    ));
+    s.push_str(&format!("| query latency p50 | {p50:.2} ms | - |\n"));
     s.push_str(&format!(
         "| query latency p95 | {p95:.2} ms | informational |\n"
     ));

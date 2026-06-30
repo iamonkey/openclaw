@@ -272,7 +272,11 @@ pub fn stable_key(path: &str, container_path: &[&str], name: &str, kind: SymbolK
     if container_path.is_empty() {
         format!("{path}#{name}:{}", kind.as_str())
     } else {
-        format!("{path}#{}/{name}:{}", container_path.join("/"), kind.as_str())
+        format!(
+            "{path}#{}/{name}:{}",
+            container_path.join("/"),
+            kind.as_str()
+        )
     }
 }
 

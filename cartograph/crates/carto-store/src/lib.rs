@@ -78,7 +78,16 @@ mod tests {
         let path = "src/a.rs";
         let syms = vec![func(path, "alpha"), method(path, "alpha", "beta", 0)];
         let file_id = store
-            .upsert_file(path, Some("rust"), Some("module a"), 42, b"hash", &syms, &[], 1)
+            .upsert_file(
+                path,
+                Some("rust"),
+                Some("module a"),
+                42,
+                b"hash",
+                &syms,
+                &[],
+                1,
+            )
             .unwrap();
 
         let frec = store.file_by_path(path).unwrap().unwrap();
@@ -189,15 +198,27 @@ mod tests {
         let p1 = "src/main.rs";
         let f1 = vec![func(p1, "main"), func(p1, "dup")];
         let refs1 = vec![
-            RawRef { src_idx: 0, target_name: "helper".into(), kind: EdgeKind::Call },
-            RawRef { src_idx: 0, target_name: "dup".into(), kind: EdgeKind::Call },
+            RawRef {
+                src_idx: 0,
+                target_name: "helper".into(),
+                kind: EdgeKind::Call,
+            },
+            RawRef {
+                src_idx: 0,
+                target_name: "dup".into(),
+                kind: EdgeKind::Call,
+            },
         ];
-        store.upsert_file(p1, None, None, 1, b"h1", &f1, &refs1, 1).unwrap();
+        store
+            .upsert_file(p1, None, None, 1, b"h1", &f1, &refs1, 1)
+            .unwrap();
 
         // File 2: defines `helper` (unique target) and another `dup` (collision).
         let p2 = "src/util.rs";
         let f2 = vec![func(p2, "helper"), func(p2, "dup")];
-        store.upsert_file(p2, None, None, 1, b"h2", &f2, &[], 1).unwrap();
+        store
+            .upsert_file(p2, None, None, 1, b"h2", &f2, &[], 1)
+            .unwrap();
 
         let resolved = store.resolve_edges().unwrap();
         // `helper` resolves uniquely -> 1 resolved edge.
@@ -219,8 +240,14 @@ mod tests {
         let path = "src/a.rs";
         // a -> b (call). who_calls(b) should return a.
         let syms = vec![func(path, "a"), func(path, "b")];
-        let refs = vec![RawRef { src_idx: 0, target_name: "b".into(), kind: EdgeKind::Call }];
-        let fid = store.upsert_file(path, None, None, 1, b"h", &syms, &refs, 1).unwrap();
+        let refs = vec![RawRef {
+            src_idx: 0,
+            target_name: "b".into(),
+            kind: EdgeKind::Call,
+        }];
+        let fid = store
+            .upsert_file(path, None, None, 1, b"h", &syms, &refs, 1)
+            .unwrap();
         store.resolve_edges().unwrap();
 
         let read = store.symbols_in_file(fid).unwrap();
@@ -247,10 +274,20 @@ mod tests {
         // Chain: a -> b -> c.
         let syms = vec![func(path, "a"), func(path, "b"), func(path, "c")];
         let refs = vec![
-            RawRef { src_idx: 0, target_name: "b".into(), kind: EdgeKind::Call },
-            RawRef { src_idx: 1, target_name: "c".into(), kind: EdgeKind::Call },
+            RawRef {
+                src_idx: 0,
+                target_name: "b".into(),
+                kind: EdgeKind::Call,
+            },
+            RawRef {
+                src_idx: 1,
+                target_name: "c".into(),
+                kind: EdgeKind::Call,
+            },
         ];
-        let fid = store.upsert_file(path, None, None, 1, b"h", &syms, &refs, 1).unwrap();
+        let fid = store
+            .upsert_file(path, None, None, 1, b"h", &syms, &refs, 1)
+            .unwrap();
         store.resolve_edges().unwrap();
         let read = store.symbols_in_file(fid).unwrap();
         let a = read.iter().find(|s| s.name == "a").unwrap();
@@ -291,7 +328,9 @@ mod tests {
         let path = "src/a.rs";
         // Two symbols both matching "fn".
         let syms = vec![func(path, "fnLow"), func(path, "fnHigh")];
-        let fid = store.upsert_file(path, None, None, 1, b"h", &syms, &[], 1).unwrap();
+        let fid = store
+            .upsert_file(path, None, None, 1, b"h", &syms, &[], 1)
+            .unwrap();
         let read = store.symbols_in_file(fid).unwrap();
         let low = read.iter().find(|s| s.name == "fnLow").unwrap();
         let high = read.iter().find(|s| s.name == "fnHigh").unwrap();
