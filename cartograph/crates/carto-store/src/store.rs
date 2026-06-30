@@ -107,6 +107,12 @@ impl Store {
         // RawSymbol.parent_idx must reference an *earlier* index (parents are
         // emitted before children); we rely on that to resolve parent ids.
         let mut id_for_idx: Vec<SymbolId> = Vec::with_capacity(symbols.len());
+        // Disambiguate colliding stable_keys within a file. Real-world code
+        // produces same path+container+name+kind collisions (e.g. overloads, or
+        // same-named members across sibling type literals); the schema's UNIQUE
+        // index would otherwise reject the second one and abort the whole build.
+        // We append "~<n>" in source order per the data-model spec (§3).
+        let mut key_counts: HashMap<String, u32> = HashMap::new();
         {
             let mut insert_sym = tx.prepare(
                 "INSERT INTO symbols(
@@ -131,9 +137,18 @@ impl Store {
                     None => None,
                 };
 
+                // Make the stable_key unique within the file (see key_counts above).
+                let n = key_counts.entry(rs.stable_key.clone()).or_insert(0);
+                *n += 1;
+                let stable_key = if *n == 1 {
+                    rs.stable_key.clone()
+                } else {
+                    format!("{}~{}", rs.stable_key, *n)
+                };
+
                 insert_sym.execute(params![
                     file_id,
-                    rs.stable_key,
+                    stable_key,
                     rs.name,
                     rs.fqn,
                     rs.kind.as_str(),
