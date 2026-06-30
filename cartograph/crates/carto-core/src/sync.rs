@@ -59,6 +59,7 @@ pub fn sync(root: &Path, db: &Path) -> Result<SyncReport> {
     let walk = WalkBuilder::new(root)
         .hidden(false)
         .git_ignore(true)
+        .require_git(false)
         .git_global(false)
         .build();
     for dent in walk.flatten() {
@@ -67,8 +68,7 @@ pub fn sync(root: &Path, db: &Path) -> Result<SyncReport> {
         }
         if let Ok(rel) = dent.path().strip_prefix(root) {
             let rel = rel.to_string_lossy().replace('\\', "/");
-            if rel.starts_with(".carto/") || rel.contains("/target/") || rel.starts_with("target/")
-            {
+            if crate::index::is_excluded(&rel) {
                 continue;
             }
             on_disk.insert(rel);

@@ -23,6 +23,17 @@ pub struct BuildStats {
     pub generation: i64,
 }
 
+/// Paths the indexer always skips, regardless of `.gitignore`: its own index,
+/// build output, and dependency trees (which `.gitignore` usually covers, but
+/// not every repo does — and a tarball checkout may lack a `.gitignore`).
+pub(crate) fn is_excluded(rel: &str) -> bool {
+    rel.starts_with(".carto/")
+        || rel.starts_with("node_modules/")
+        || rel.contains("/node_modules/")
+        || rel.starts_with("target/")
+        || rel.contains("/target/")
+}
+
 /// Full build of `root` into the SQLite index at `db_path`.
 pub fn build_index(root: &Path, db_path: &Path) -> Result<BuildStats> {
     let mut store = Store::open(db_path).context("open index store")?;
@@ -35,6 +46,7 @@ pub fn build_index(root: &Path, db_path: &Path) -> Result<BuildStats> {
     let walk = WalkBuilder::new(root)
         .hidden(false) // index dotfiles too, but .gitignore still applies
         .git_ignore(true)
+        .require_git(false) // honor .gitignore even in a non-git checkout (tarball)
         .git_global(false)
         .build();
 
@@ -52,7 +64,7 @@ pub fn build_index(root: &Path, db_path: &Path) -> Result<BuildStats> {
             Ok(p) => p.to_string_lossy().replace('\\', "/"),
             Err(_) => continue,
         };
-        if rel.starts_with(".carto/") || rel.contains("/target/") || rel.starts_with("target/") {
+        if is_excluded(&rel) {
             continue;
         }
 
