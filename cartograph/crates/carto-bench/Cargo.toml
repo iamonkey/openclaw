@@ -1,0 +1,15 @@
+[package]
+name = "carto-bench"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "carto-bench"
+path = "src/main.rs"
+
+[dependencies]
+carto-core = { workspace = true }
+carto-model = { workspace = true }
+anyhow = { workspace = true }
+serde_json = { workspace = true }

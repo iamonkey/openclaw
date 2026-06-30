@@ -1,0 +1,12 @@
+[package]
+name = "carto-core"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+carto-model = { workspace = true }
+carto-store = { workspace = true }
+carto-parse = { workspace = true }
+anyhow = { workspace = true }
+ignore = { workspace = true }

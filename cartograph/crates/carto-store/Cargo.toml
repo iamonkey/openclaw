@@ -1,0 +1,11 @@
+[package]
+name = "carto-store"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+carto-model = { workspace = true }
+rusqlite = { workspace = true }
+blake3 = { workspace = true }
+anyhow = { workspace = true }

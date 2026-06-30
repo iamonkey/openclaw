@@ -1,0 +1,11 @@
+[package]
+name = "carto-parse"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+carto-model = { workspace = true }
+anyhow = { workspace = true }
+# tree-sitter deps are added by the parse implementation work item; exact
+# versions resolved empirically against the toolchain.
