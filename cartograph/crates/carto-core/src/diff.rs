@@ -266,6 +266,152 @@ pub fn working_tree_diff(reader: &IndexReader) -> Result<AstDiff> {
     })
 }
 
+/// Scoped structural diff: only the given repo-relative paths, comparing each
+/// file's stored symbols against a fresh parse. This is the dirty-file-scoped
+/// variant the incremental loop wants (doc 10) — O(changed files), not O(repo).
+/// Cross-file Move detection is out of scope here (a symbol that moved to an
+/// unscoped file reads as Removed); use `working_tree_diff` for whole-tree moves.
+pub fn working_tree_diff_scoped(reader: &IndexReader, rels: &[String]) -> Result<AstDiff> {
+    let store = reader.store();
+    let mut changes: Vec<DiffChange> = Vec::new();
+
+    for rel in rels {
+        let file = store.file_by_path(rel)?;
+        let stored: HashMap<String, SymInfo> = match &file {
+            Some(f) => store
+                .symbols_in_file(f.id)?
+                .into_iter()
+                .map(|s| {
+                    (
+                        s.stable_key,
+                        SymInfo {
+                            name: s.name,
+                            kind: s.kind,
+                            signature: s.signature,
+                        },
+                    )
+                })
+                .collect(),
+            None => HashMap::new(),
+        };
+
+        let src = match reader.read_source(rel) {
+            Ok(s) => s,
+            Err(_) => continue,
+        };
+        let body_dirty = match &file {
+            Some(f) => blake3::hash(src.as_bytes()).as_bytes().as_slice() != f.content_hash.as_slice(),
+            None => true,
+        };
+        let current: HashMap<String, SymInfo> = carto_parse::parse_file(rel, &src)
+            .symbols
+            .into_iter()
+            .map(|rs| {
+                (
+                    rs.stable_key,
+                    SymInfo {
+                        name: rs.name,
+                        kind: rs.kind,
+                        signature: rs.signature,
+                    },
+                )
+            })
+            .collect();
+
+        let mut structural = false;
+        // Signature changes on shared keys.
+        for (key, cur) in &current {
+            if let Some(old) = stored.get(key) {
+                if old.signature != cur.signature {
+                    let detail = signature_detail(&old.signature, &cur.signature);
+                    changes.push(DiffChange {
+                        symbol: key.clone(),
+                        change: ChangeKind::Signature,
+                        token_est: estimate_tokens(&detail),
+                        detail,
+                    });
+                    structural = true;
+                }
+            }
+        }
+        // Within-file rename + bare add/remove.
+        let mut removed: Vec<(&String, &SymInfo)> =
+            stored.iter().filter(|(k, _)| !current.contains_key(*k)).collect();
+        let mut added: Vec<(&String, &SymInfo)> =
+            current.iter().filter(|(k, _)| !stored.contains_key(*k)).collect();
+        let mut rem_used = vec![false; removed.len()];
+        let mut add_used = vec![false; added.len()];
+        for ri in 0..removed.len() {
+            if let Some(ai) = (0..added.len()).find(|&ai| {
+                !add_used[ai]
+                    && added[ai].1.name != removed[ri].1.name
+                    && rename_shape_match(removed[ri].1, added[ai].1)
+            }) {
+                let detail = format!("{} -> {}", removed[ri].1.name, added[ai].1.name);
+                changes.push(DiffChange {
+                    symbol: added[ai].0.clone(),
+                    change: ChangeKind::Renamed,
+                    token_est: estimate_tokens(&detail),
+                    detail,
+                });
+                rem_used[ri] = true;
+                add_used[ai] = true;
+                structural = true;
+            }
+        }
+        for (ai, (key, info)) in added.iter().enumerate() {
+            if add_used[ai] {
+                continue;
+            }
+            let c = Candidate { path: rel.clone(), key: (*key).clone(), info: (*info).clone() };
+            let detail = added_detail(&c);
+            changes.push(DiffChange {
+                symbol: c.key,
+                change: ChangeKind::Added,
+                token_est: estimate_tokens(&detail),
+                detail,
+            });
+            structural = true;
+        }
+        for (ri, (key, info)) in removed.iter().enumerate() {
+            if rem_used[ri] {
+                continue;
+            }
+            let c = Candidate { path: rel.clone(), key: (*key).clone(), info: (*info).clone() };
+            let detail = removed_detail(&c);
+            changes.push(DiffChange {
+                symbol: c.key,
+                change: ChangeKind::Removed,
+                token_est: estimate_tokens(&detail),
+                detail,
+            });
+            structural = true;
+        }
+        // unused bindings to silence borrow-checker on the marker vecs
+        let _ = (&mut removed, &mut added);
+
+        if body_dirty && !structural {
+            let detail = "body changed".to_string();
+            changes.push(DiffChange {
+                symbol: rel.clone(),
+                change: ChangeKind::Body,
+                token_est: estimate_tokens(&detail),
+                detail,
+            });
+        }
+    }
+
+    changes.sort_by_key(|c| significance(c.change));
+    let token_est = changes.iter().map(|c| c.token_est).sum();
+    Ok(AstDiff {
+        generation: reader.generation()?,
+        from: "INDEX".to_string(),
+        to: "WORKING".to_string(),
+        token_est,
+        changes,
+    })
+}
+
 /// Significance ordering for truncation/display (doc §7): structural changes
 /// before body churn. Lower sorts first.
 fn significance(kind: ChangeKind) -> u8 {

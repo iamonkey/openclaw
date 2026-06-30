@@ -10,10 +10,12 @@ pub mod index;
 pub mod pagerank;
 pub mod plan;
 pub mod reader;
+pub mod sync;
 
 pub use impact::ImpactOpts;
 pub use index::{build_index, BuildStats};
 pub use reader::IndexReader;
+pub use sync::{recompute_ranks, sync, sync_paths, SyncReport};
 
 /// Default index location relative to a repo root: `<root>/.carto/index.db`.
 pub fn default_db_path(root: &std::path::Path) -> std::path::PathBuf {

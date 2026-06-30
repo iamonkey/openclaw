@@ -399,6 +399,133 @@ impl Store {
         Ok(resolved_count)
     }
 
+    /// Names of all symbols defined in a file (for incremental re-resolution).
+    pub fn symbol_names_in_file(&self, file_id: FileId) -> Result<Vec<String>> {
+        let mut stmt = self
+            .conn
+            .prepare("SELECT name FROM symbols WHERE file_id = ?1")?;
+        let rows = stmt.query_map(params![file_id], |r| r.get(0))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Delete a file (and, via cascade, its symbols/skeletons/raw_refs/edges).
+    /// Returns true if a row was removed. Used by `sync` for deleted files.
+    pub fn delete_file(&mut self, path: &str) -> Result<bool> {
+        let n = self
+            .conn
+            .execute("DELETE FROM files WHERE path = ?1", params![path])?;
+        Ok(n > 0)
+    }
+
+    /// Incrementally re-resolve edges after one file changed (H4/doc 10). Far
+    /// cheaper than a full `resolve_edges`: only edges that could have changed
+    /// are touched — outgoing edges from `file_id`'s symbols, plus any edge
+    /// (from any file) whose target name is in `names` (the union of the names
+    /// this file defined before and after the edit, so incoming edges to
+    /// added/removed/renamed defs are rebuilt). Returns resolved-edge count.
+    ///
+    /// Note: the prior file row's symbols were cascade-deleted by `upsert_file`,
+    /// so their old in/out edges are already gone; this only (re)inserts.
+    pub fn resolve_edges_incremental(
+        &mut self,
+        file_id: FileId,
+        names: &[String],
+    ) -> Result<usize> {
+        let generation = self.generation()?;
+        let tx = self.conn.transaction()?;
+
+        // Symbols currently in the dirty file (post-upsert, new ids).
+        let affected: Vec<SymbolId> = {
+            let mut stmt = tx.prepare("SELECT id FROM symbols WHERE file_id = ?1")?;
+            let rows = stmt.query_map(params![file_id], |r| r.get(0))?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+
+        // Drop outgoing edges from those symbols so a re-resolve is idempotent.
+        for sid in &affected {
+            tx.execute("DELETE FROM edges WHERE src_id = ?1", params![sid])?;
+        }
+
+        // Collect raw_refs to (re)resolve via INDEXED lookups (not a full scan):
+        // (a) refs originating in the dirty file (idx_raw_refs_src), and
+        // (b) refs targeting a name this file owns/owned (idx_raw_refs_target,
+        // rebuilds incoming edges). Dedup the overlap. This keeps the edit hot
+        // path O(refs touching this file) instead of O(all refs in the repo).
+        let mut refs: Vec<(SymbolId, String, String)> = Vec::new();
+        {
+            let mut seen: std::collections::HashSet<(SymbolId, String, String)> =
+                std::collections::HashSet::new();
+            // (a) outgoing
+            {
+                let mut stmt =
+                    tx.prepare("SELECT src_id, target_name, kind FROM raw_refs WHERE src_id = ?1")?;
+                for &sid in &affected {
+                    let rows = stmt.query_map(params![sid], |r| {
+                        Ok((r.get::<_, SymbolId>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                    })?;
+                    for row in rows {
+                        let t = row?;
+                        if seen.insert(t.clone()) {
+                            refs.push(t);
+                        }
+                    }
+                }
+            }
+            // (b) incoming (refs from anywhere targeting one of our names)
+            {
+                let mut stmt = tx.prepare(
+                    "SELECT src_id, target_name, kind FROM raw_refs WHERE target_name = ?1",
+                )?;
+                for name in names {
+                    let rows = stmt.query_map(params![name], |r| {
+                        Ok((r.get::<_, SymbolId>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?))
+                    })?;
+                    for row in rows {
+                        let t = row?;
+                        if seen.insert(t.clone()) {
+                            refs.push(t);
+                        }
+                    }
+                }
+            }
+        }
+
+        let mut resolved_count = 0usize;
+        {
+            let mut insert_edge = tx.prepare(
+                "INSERT OR IGNORE INTO edges(src_id, dst_id, kind, resolved, generation)
+                 VALUES(?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for (src_id, target_name, kind) in refs {
+                let candidates: Vec<SymbolId> = {
+                    let mut stmt = tx.prepare("SELECT id FROM symbols WHERE name = ?1")?;
+                    let rows = stmt.query_map(params![target_name], |r| r.get(0))?;
+                    rows.collect::<rusqlite::Result<Vec<_>>>()?
+                };
+                match candidates.as_slice() {
+                    [] => {}
+                    [dst] => {
+                        if *dst != src_id {
+                            resolved_count +=
+                                insert_edge.execute(params![src_id, dst, kind, 1i64, generation])?;
+                        }
+                    }
+                    many => {
+                        for dst in many {
+                            if *dst != src_id {
+                                insert_edge
+                                    .execute(params![src_id, dst, kind, 0i64, generation])?;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        tx.commit()?;
+        Ok(resolved_count)
+    }
+
     // ── Rank read/write ─────────────────────────────────────────────────────
 
     /// Overwrite symbols.rank from a map of symbol_id -> rank (one tx).

@@ -21,6 +21,15 @@ struct Cli {
 enum Cmd {
     /// Build the index for the repo root.
     Index,
+    /// Incrementally resync the index (reparse only changed files).
+    /// With paths, syncs just those (the edit hot path); else scans the tree.
+    Sync {
+        /// Repo-relative paths to sync; empty = whole-tree dirty scan.
+        paths: Vec<String>,
+        /// Also recompute PageRank now (otherwise ranks are marked dirty).
+        #[arg(long)]
+        rerank: bool,
+    },
     /// Run a single retrieval tool and print JSON.
     Query {
         #[command(subcommand)]
@@ -96,6 +105,34 @@ fn main() -> Result<()> {
                 stats.edges_resolved,
                 stats.cochange_pairs,
                 stats.generation
+            );
+        }
+        Cmd::Sync { paths, rerank } => {
+            let report = if paths.is_empty() {
+                carto_core::sync(&root, &db)?
+            } else {
+                carto_core::sync_paths(&root, &db, &paths)?
+            };
+            let rerank_ms = if rerank {
+                Some(carto_core::recompute_ranks(&db)?)
+            } else {
+                None
+            };
+            println!(
+                "synced: {} changed, {} added, {} deleted, {} clean-skipped \
+                 (parse {:.2} ms, resolve {:.2} ms, total {:.2} ms, generation {}{})",
+                report.changed,
+                report.added,
+                report.deleted,
+                report.skipped_clean,
+                report.parse_ms,
+                report.resolve_ms,
+                report.total_ms,
+                report.generation,
+                match rerank_ms {
+                    Some(ms) => format!(", rerank {ms:.1} ms"),
+                    None => ", rank dirty".to_string(),
+                },
             );
         }
         Cmd::Query { tool } => {

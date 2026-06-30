@@ -201,6 +201,11 @@ impl IndexReader {
         crate::diff::working_tree_diff(self)
     }
 
+    /// H4 scoped: structural diff of just the given paths (O(changed files)).
+    pub fn diff_paths(&self, rels: &[String]) -> Result<carto_model::AstDiff> {
+        crate::diff::working_tree_diff_scoped(self, rels)
+    }
+
     /// H5 `plan_retrieval`: budget-constrained retrieval plan for a task.
     pub fn plan(
         &self,
