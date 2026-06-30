@@ -98,6 +98,50 @@ fn classifies_bug_localize_over_where() {
 }
 
 #[test]
+fn classifies_add_as_where_is_over_incidental_keywords() {
+    let fx = fixture();
+    // "Add a method ..." is an implementation task: the "depend"-style impact
+    // keyword (here "change") must not hijack it into WhatBreaks. It routes to
+    // WhereIs so the pattern to mirror gets located, not a blast-radius survey.
+    let plan = fx
+        .reader
+        .plan(
+            "Add a new paginate variant; this should not change downstream impact",
+            2000,
+            true,
+        )
+        .unwrap();
+    assert_eq!(plan.task_class, TaskClass::WhereIs);
+}
+
+#[test]
+fn default_task_locates_instead_of_outline() {
+    let fx = fixture();
+    // A task with searchable terms but no add/where/fix/impact signal still
+    // falls to Default — which must now locate real targets (search + expand)
+    // rather than emit only a whole-repo outline survey.
+    let plan = fx
+        .reader
+        .plan("paginate items per page", 2000, false)
+        .unwrap();
+    assert_eq!(plan.task_class, TaskClass::Default);
+    // The located target body must be hydrated, not just an outline skeleton.
+    let mentions_paginate = plan
+        .context
+        .iter()
+        .any(|c| c.text.contains("paginate") || c.key.as_deref() == Some("src/pagination.ts#paginate:function"));
+    assert!(
+        mentions_paginate,
+        "Default plan should locate the paginate target, not fall back to outline"
+    );
+    // And it should record at least one search step (the locate path ran).
+    assert!(
+        plan.steps.iter().any(|s| s.tool == "search"),
+        "Default plan should run search before any outline fallback"
+    );
+}
+
+#[test]
 fn where_is_plan_hydrates_target_within_budget() {
     let fx = fixture();
     let budget = 2000;

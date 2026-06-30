@@ -52,19 +52,31 @@ pub fn plan(reader: &IndexReader, task: &str, budget: i64, dry_run: bool) -> Res
             }
         }
         TaskClass::Default => {
-            steps.push(PlanStep {
-                tool: "outline".into(),
-                args: format!("outline path=\"\" tier=signature max_tokens={budget}"),
-                why: "no specific target; survey the repo signature skeleton".into(),
-            });
-            let outline = reader.outline("", Tier::Signature, Some(budget))?;
-            let text = render_outline(&outline);
-            candidates.push(ContextChunk {
-                source_tool: "outline".into(),
-                key: None,
-                token_est: estimate_tokens(&text),
-                text,
-            });
+            // An unclassified task is most often an *implementation* request
+            // ("add X", "create Y", "introduce Z") — no where/fix/impact signal,
+            // but it still names the thing to build and the pattern to mirror.
+            // Try to locate real targets (and their bodies) from the search
+            // terms first; only fall back to the whole-repo outline survey when
+            // the search genuinely finds nothing. This avoids burning a turn on
+            // an outline that the agent cannot act on.
+            let matches = locate(reader, &terms, &mut steps);
+            if matches.is_empty() {
+                steps.push(PlanStep {
+                    tool: "outline".into(),
+                    args: format!("outline path=\"\" tier=signature max_tokens={budget}"),
+                    why: "no matching symbols; survey the repo signature skeleton".into(),
+                });
+                let outline = reader.outline("", Tier::Signature, Some(budget))?;
+                let text = render_outline(&outline);
+                candidates.push(ContextChunk {
+                    source_tool: "outline".into(),
+                    key: None,
+                    token_est: estimate_tokens(&text),
+                    text,
+                });
+            } else {
+                push_locate_and_bodies(reader, &matches, &mut steps, &mut candidates)?;
+            }
         }
     }
 
@@ -113,6 +125,14 @@ fn classify(task: &str) -> TaskClass {
         "broken",
     ]) {
         return TaskClass::BugLocalize;
+    }
+    // Implementation intent next: "add/create/introduce a new X" is a build
+    // task that wants the pattern to mirror located (search + bodies), not an
+    // impact survey. This must beat the WhatBreaks keywords below so an
+    // incidental "dependency-injection" / "change" in the task text does not
+    // hijack an "add a method" request into blast-radius mode.
+    if has(&["add ", "create", "introduce", "implement", "new "]) {
+        return TaskClass::WhereIs;
     }
     // Then impact/ripple questions.
     if has(&[
