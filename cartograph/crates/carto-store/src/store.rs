@@ -429,6 +429,95 @@ impl Store {
         let rows = stmt.query_map([], |r| r.get(0))?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
+
+    // ── Meta key/value (H3 head-rev bookkeeping etc.) ─────────────────────────
+
+    /// Read a free-form meta value.
+    pub fn get_meta(&self, key: &str) -> Result<Option<String>> {
+        Ok(self
+            .conn
+            .query_row("SELECT value FROM meta WHERE key = ?1", [key], |r| r.get(0))
+            .optional()?)
+    }
+
+    /// Upsert a free-form meta value.
+    pub fn set_meta(&mut self, key: &str, value: &str) -> Result<()> {
+        self.conn.execute(
+            "INSERT INTO meta(key, value) VALUES(?1, ?2)
+             ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            params![key, value],
+        )?;
+        Ok(())
+    }
+
+    // ── File co-change (H3) ───────────────────────────────────────────────────
+
+    /// Replace the entire `file_cochange` table in one transaction. Producers
+    /// (carto-git) recompute the full set from history, so this is a clean swap.
+    pub fn replace_file_cochange(
+        &mut self,
+        rows: &[carto_model::FileCochangeRow],
+    ) -> Result<()> {
+        let tx = self.conn.transaction()?;
+        tx.execute("DELETE FROM file_cochange", [])?;
+        {
+            let mut stmt = tx.prepare(
+                "INSERT OR REPLACE INTO file_cochange(a_file, b_file, support, confidence, lift)
+                 VALUES(?1, ?2, ?3, ?4, ?5)",
+            )?;
+            for r in rows {
+                stmt.execute(params![r.a_file, r.b_file, r.support, r.confidence, r.lift])?;
+            }
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Files that co-change with `file_id` at or above `min_lift`, strongest
+    /// first, up to `limit`. Returns (file_id, lift).
+    pub fn cochanging_files(
+        &self,
+        file_id: FileId,
+        min_lift: f64,
+        limit: i64,
+    ) -> Result<Vec<(FileId, f64)>> {
+        let mut stmt = self.conn.prepare(
+            "SELECT b_file, lift FROM file_cochange
+             WHERE a_file = ?1 AND lift >= ?2
+             ORDER BY lift DESC LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(params![file_id, min_lift, limit], |r| {
+            Ok((r.get::<_, FileId>(0)?, r.get::<_, f64>(1)?))
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Total co-change rows (0 = signal unavailable, e.g. no git history).
+    pub fn file_cochange_count(&self) -> Result<i64> {
+        Ok(self
+            .conn
+            .query_row("SELECT COUNT(*) FROM file_cochange", [], |r| r.get(0))?)
+    }
+
+    /// All symbols defined in any of `file_ids`, ranked. Empty input → empty.
+    pub fn symbols_in_files(&self, file_ids: &[FileId]) -> Result<Vec<Symbol>> {
+        if file_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let placeholders = file_ids
+            .iter()
+            .map(|_| "?")
+            .collect::<Vec<_>>()
+            .join(",");
+        let sql = format!(
+            "{SYMBOL_SELECT} WHERE s.file_id IN ({placeholders}) ORDER BY s.rank DESC"
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let params: Vec<&dyn rusqlite::ToSql> =
+            file_ids.iter().map(|x| x as &dyn rusqlite::ToSql).collect();
+        let rows = stmt.query_map(params.as_slice(), row_to_symbol)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
 }
 
 // ── Helpers ─────────────────────────────────────────────────────────────────

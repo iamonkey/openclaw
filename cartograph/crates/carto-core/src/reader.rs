@@ -174,6 +174,38 @@ impl IndexReader {
     pub fn symbol_by_key(&self, key: &str) -> Result<Option<Symbol>> {
         self.store.symbol_by_key(key)
     }
+
+    // ── Accessors for the hypothesis modules (impact/diff/plan) ───────────────
+
+    /// Borrow the underlying store (read-only use by H3/H4/H5 modules).
+    pub(crate) fn store(&self) -> &carto_store::Store {
+        &self.store
+    }
+
+    /// Repo root (for reading live source in H4 working-tree diff).
+    pub(crate) fn root(&self) -> &Path {
+        &self.root
+    }
+
+    /// Read a file's current source from disk (repo-relative path).
+    pub(crate) fn read_source(&self, rel: &str) -> Result<String> {
+        Ok(std::fs::read_to_string(self.root.join(rel))?)
+    }
+
+    /// H3 `impact`: blast radius fusing static neighbors with git co-change.
+    pub fn impact(&self, key: &str, opts: &crate::impact::ImpactOpts) -> Result<carto_model::ImpactSet> {
+        crate::impact::compute(self, key, opts)
+    }
+
+    /// H4 `diff_context`: structural diff of the working tree vs the last index.
+    pub fn diff_working(&self) -> Result<carto_model::AstDiff> {
+        crate::diff::working_tree_diff(self)
+    }
+
+    /// H5 `plan_retrieval`: budget-constrained retrieval plan for a task.
+    pub fn plan(&self, task: &str, budget: i64, dry_run: bool) -> Result<carto_model::RetrievalPlan> {
+        crate::plan::plan(self, task, budget, dry_run)
+    }
 }
 
 /// Render a one-line outline entry for a symbol: prefer the stored signature,

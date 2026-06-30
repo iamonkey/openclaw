@@ -19,6 +19,7 @@ pub struct BuildStats {
     pub files_parsed: usize,
     pub symbols: usize,
     pub edges_resolved: usize,
+    pub cochange_pairs: usize,
     pub generation: i64,
 }
 
@@ -100,6 +101,9 @@ pub fn build_index(root: &Path, db_path: &Path) -> Result<BuildStats> {
     let edges = store.all_call_edges()?;
     let ranks = pagerank::pagerank(&nodes, &edges, 0.85, 30);
     store.write_ranks(&ranks).context("write ranks")?;
+
+    // H3: mine git co-change into file_cochange (no-op if not a git repo).
+    stats.cochange_pairs = carto_git::mine_cochange(root, &mut store).unwrap_or(0);
 
     Ok(stats)
 }

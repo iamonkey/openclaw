@@ -55,6 +55,26 @@ enum Tool {
         #[arg(long, default_value_t = 20)]
         limit: i64,
     },
+    /// H3: blast radius (static neighbors + git co-change).
+    Impact {
+        key: String,
+        #[arg(long, default_value_t = 2)]
+        static_depth: u8,
+        #[arg(long, default_value_t = 1.5)]
+        min_lift: f64,
+        #[arg(long)]
+        max_tokens: Option<i64>,
+    },
+    /// H4: structural diff of the working tree vs the last index.
+    Diff,
+    /// H5: budget-constrained retrieval plan for a task.
+    Plan {
+        task: String,
+        #[arg(long, default_value_t = 6000)]
+        budget: i64,
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -69,11 +89,12 @@ fn main() -> Result<()> {
             let stats = build_index(&root, &db).context("build index")?;
             let ms = t.elapsed().as_millis();
             println!(
-                "indexed {} files ({} parsed), {} symbols, {} edges in {ms} ms (generation {})",
+                "indexed {} files ({} parsed), {} symbols, {} edges, {} co-change pairs in {ms} ms (generation {})",
                 stats.files_indexed,
                 stats.files_parsed,
                 stats.symbols,
                 stats.edges_resolved,
+                stats.cochange_pairs,
                 stats.generation
             );
         }
@@ -125,6 +146,25 @@ fn run_tool(reader: &IndexReader, tool: Tool) -> Result<serde_json::Value> {
                 "matches": matches.iter().map(symbol_brief).collect::<Vec<_>>(),
             })
         }
+        Tool::Impact {
+            key,
+            static_depth,
+            min_lift,
+            max_tokens,
+        } => {
+            let opts = carto_core::ImpactOpts {
+                static_depth,
+                min_lift,
+                max_tokens,
+            };
+            serde_json::to_value(reader.impact(&key, &opts)?)?
+        }
+        Tool::Diff => serde_json::to_value(reader.diff_working()?)?,
+        Tool::Plan {
+            task,
+            budget,
+            dry_run,
+        } => serde_json::to_value(reader.plan(&task, budget, dry_run)?)?,
     })
 }
 

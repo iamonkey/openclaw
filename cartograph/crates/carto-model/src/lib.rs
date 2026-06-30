@@ -263,6 +263,157 @@ pub struct SourceSpan {
     pub end_row: i64,
 }
 
+// ── H3: Impact-Radius (`06-h3-impact-radius.md`) ────────────────────────────
+
+/// Where an impact item came from.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ImpactSource {
+    /// Static call/reference graph (H2).
+    Static,
+    /// Git co-change signal (H3).
+    Cochange,
+}
+
+impl ImpactSource {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ImpactSource::Static => "static",
+            ImpactSource::Cochange => "cochange",
+        }
+    }
+}
+
+/// One symbol in a blast radius.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImpactItem {
+    pub key: String,
+    pub source: ImpactSource,
+    /// Human-readable justification, e.g. "typeref depth 1" or "changed together 14x (lift 3.2)".
+    pub reason: String,
+    pub weight: f64,
+}
+
+/// Result of `impact` (H3).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ImpactSet {
+    pub generation: i64,
+    pub cochange_available: bool,
+    pub items: Vec<ImpactItem>,
+    pub truncated: bool,
+    pub dropped: i64,
+}
+
+/// One file-level co-change pair as mined from git history (H3). `a`/`b` are
+/// file ids; the relation is symmetric so producers emit both orderings.
+#[derive(Debug, Clone)]
+pub struct FileCochangeRow {
+    pub a_file: FileId,
+    pub b_file: FileId,
+    pub support: i64,
+    pub confidence: f64,
+    pub lift: f64,
+}
+
+// ── H4: Semantic Diff Hydration (`08-h4-semantic-diff-hydration.md`) ─────────
+
+/// Kind of structural change to a symbol between two states.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum ChangeKind {
+    Added,
+    Removed,
+    Renamed,
+    Signature,
+    Body,
+    Moved,
+}
+
+impl ChangeKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ChangeKind::Added => "added",
+            ChangeKind::Removed => "removed",
+            ChangeKind::Renamed => "renamed",
+            ChangeKind::Signature => "signature",
+            ChangeKind::Body => "body",
+            ChangeKind::Moved => "moved",
+        }
+    }
+}
+
+/// One structural change (H4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiffChange {
+    pub symbol: String,
+    pub change: ChangeKind,
+    /// Compact, faithful description, e.g. "+param strict: boolean".
+    pub detail: String,
+    pub token_est: i64,
+}
+
+/// Result of `diff_context` (H4).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AstDiff {
+    pub generation: i64,
+    pub from: String,
+    pub to: String,
+    pub token_est: i64,
+    pub changes: Vec<DiffChange>,
+}
+
+// ── H5: Adaptive Context Budgeter (`09-h5-adaptive-context-budgeter.md`) ─────
+
+/// Task class the planner routes on.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum TaskClass {
+    WhereIs,
+    WhatBreaks,
+    BugLocalize,
+    Default,
+}
+
+impl TaskClass {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            TaskClass::WhereIs => "where-is",
+            TaskClass::WhatBreaks => "what-breaks",
+            TaskClass::BugLocalize => "bug-localize",
+            TaskClass::Default => "default",
+        }
+    }
+}
+
+/// One planned tool invocation (auditable).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct PlanStep {
+    pub tool: String,
+    /// Rendered arguments (human + machine readable), e.g. "neighborhood depth=2".
+    pub args: String,
+    pub why: String,
+}
+
+/// One hydrated context chunk the planner returns alongside the plan.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ContextChunk {
+    pub source_tool: String,
+    pub key: Option<String>,
+    pub text: String,
+    pub token_est: i64,
+}
+
+/// Result of `plan_retrieval` (H5).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RetrievalPlan {
+    pub generation: i64,
+    pub task_class: TaskClass,
+    pub budget: i64,
+    pub spent_est: i64,
+    pub steps: Vec<PlanStep>,
+    pub context: Vec<ContextChunk>,
+}
+
 /// Compute the canonical `stable_key` for a symbol.
 ///
 /// `stable_key = "<repo-rel-path>#<container-path>/<name>:<kind>"`

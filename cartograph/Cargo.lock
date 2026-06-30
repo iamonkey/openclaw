@@ -150,10 +150,20 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "blake3",
+ "carto-git",
  "carto-model",
  "carto-parse",
  "carto-store",
  "ignore",
+]
+
+[[package]]
+name = "carto-git"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "carto-model",
+ "carto-store",
 ]
 
 [[package]]

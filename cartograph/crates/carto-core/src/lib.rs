@@ -4,10 +4,14 @@
 //! index build (`index::build_index`) and the read-only tool facade
 //! (`reader::IndexReader`). The CLI and benchmark crates depend only on this.
 
+pub mod diff;
+pub mod impact;
 pub mod index;
 pub mod pagerank;
+pub mod plan;
 pub mod reader;
 
+pub use impact::ImpactOpts;
 pub use index::{build_index, BuildStats};
 pub use reader::IndexReader;
 

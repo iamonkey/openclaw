@@ -96,6 +96,19 @@ CREATE TABLE IF NOT EXISTS raw_refs (
 );
 CREATE INDEX IF NOT EXISTS idx_raw_refs_src    ON raw_refs(src_id);
 CREATE INDEX IF NOT EXISTS idx_raw_refs_target ON raw_refs(target_name);
+
+-- ── File co-change (H3, `06-h3-impact-radius.md`) ──────────────────────────
+-- File-level association-rule signal mined from git history. Symmetric: both
+-- (a,b) and (b,a) are stored so a single-direction lookup suffices.
+CREATE TABLE IF NOT EXISTS file_cochange (
+  a_file     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  b_file     INTEGER NOT NULL REFERENCES files(id) ON DELETE CASCADE,
+  support    INTEGER NOT NULL,
+  confidence REAL NOT NULL,
+  lift       REAL NOT NULL,
+  PRIMARY KEY (a_file, b_file)
+);
+CREATE INDEX IF NOT EXISTS idx_file_cochange_a ON file_cochange(a_file, lift DESC);
 "#,
     )?;
 

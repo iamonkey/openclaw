@@ -4,6 +4,7 @@ members = [
     "crates/carto-model",
     "crates/carto-store",
     "crates/carto-parse",
+    "crates/carto-git",
     "crates/carto-core",
     "crates/carto-cli",
     "crates/carto-bench",
@@ -20,6 +21,7 @@ rust-version = "1.80"
 carto-model = { path = "crates/carto-model" }
 carto-store = { path = "crates/carto-store" }
 carto-parse = { path = "crates/carto-parse" }
+carto-git = { path = "crates/carto-git" }
 carto-core = { path = "crates/carto-core" }
 
 # external
