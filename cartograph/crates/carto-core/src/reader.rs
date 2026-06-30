@@ -182,18 +182,17 @@ impl IndexReader {
         &self.store
     }
 
-    /// Repo root (for reading live source in H4 working-tree diff).
-    pub(crate) fn root(&self) -> &Path {
-        &self.root
-    }
-
     /// Read a file's current source from disk (repo-relative path).
     pub(crate) fn read_source(&self, rel: &str) -> Result<String> {
         Ok(std::fs::read_to_string(self.root.join(rel))?)
     }
 
     /// H3 `impact`: blast radius fusing static neighbors with git co-change.
-    pub fn impact(&self, key: &str, opts: &crate::impact::ImpactOpts) -> Result<carto_model::ImpactSet> {
+    pub fn impact(
+        &self,
+        key: &str,
+        opts: &crate::impact::ImpactOpts,
+    ) -> Result<carto_model::ImpactSet> {
         crate::impact::compute(self, key, opts)
     }
 
@@ -203,7 +202,12 @@ impl IndexReader {
     }
 
     /// H5 `plan_retrieval`: budget-constrained retrieval plan for a task.
-    pub fn plan(&self, task: &str, budget: i64, dry_run: bool) -> Result<carto_model::RetrievalPlan> {
+    pub fn plan(
+        &self,
+        task: &str,
+        budget: i64,
+        dry_run: bool,
+    ) -> Result<carto_model::RetrievalPlan> {
         crate::plan::plan(self, task, budget, dry_run)
     }
 }

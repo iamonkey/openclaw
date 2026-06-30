@@ -454,10 +454,7 @@ impl Store {
 
     /// Replace the entire `file_cochange` table in one transaction. Producers
     /// (carto-git) recompute the full set from history, so this is a clean swap.
-    pub fn replace_file_cochange(
-        &mut self,
-        rows: &[carto_model::FileCochangeRow],
-    ) -> Result<()> {
+    pub fn replace_file_cochange(&mut self, rows: &[carto_model::FileCochangeRow]) -> Result<()> {
         let tx = self.conn.transaction()?;
         tx.execute("DELETE FROM file_cochange", [])?;
         {
@@ -504,14 +501,9 @@ impl Store {
         if file_ids.is_empty() {
             return Ok(Vec::new());
         }
-        let placeholders = file_ids
-            .iter()
-            .map(|_| "?")
-            .collect::<Vec<_>>()
-            .join(",");
-        let sql = format!(
-            "{SYMBOL_SELECT} WHERE s.file_id IN ({placeholders}) ORDER BY s.rank DESC"
-        );
+        let placeholders = file_ids.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+        let sql =
+            format!("{SYMBOL_SELECT} WHERE s.file_id IN ({placeholders}) ORDER BY s.rank DESC");
         let mut stmt = self.conn.prepare(&sql)?;
         let params: Vec<&dyn rusqlite::ToSql> =
             file_ids.iter().map(|x| x as &dyn rusqlite::ToSql).collect();

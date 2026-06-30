@@ -1,147 +1,147 @@
 {
-  "index_build_ms": 288.36733399999997,
-  "query_latency_p50_ms": 1.744455,
-  "query_latency_p95_ms": 2.450225,
+  "index_build_ms": 249.048577,
+  "query_latency_p50_ms": 1.806676,
+  "query_latency_p95_ms": 3.4579950000000004,
   "tasks": [
     {
       "baseline_file_hit": true,
       "baseline_tokens": 7161,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 153,
+      "carto_tokens": 243,
       "class": "where-is",
       "id": "where-pagination",
-      "reduction_pct": 97.86342689568495
+      "reduction_pct": 96.60661918726436
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 7949,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 259,
+      "carto_tokens": 338,
       "class": "where-is",
       "id": "where-config-load",
-      "reduction_pct": 96.74172851931061
+      "reduction_pct": 95.7478928167065
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 14933,
-      "carto_file_hit": false,
-      "carto_symbol_hit": false,
-      "carto_tokens": 273,
+      "carto_file_hit": true,
+      "carto_symbol_hit": true,
+      "carto_tokens": 467,
       "class": "where-is",
       "id": "where-validation",
-      "reduction_pct": 98.17183419272752
+      "reduction_pct": 96.87269805129579
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 12551,
       "carto_file_hit": true,
-      "carto_symbol_hit": false,
-      "carto_tokens": 236,
+      "carto_symbol_hit": true,
+      "carto_tokens": 783,
       "class": "where-is",
       "id": "where-repo-create",
-      "reduction_pct": 98.11967173930364
+      "reduction_pct": 93.76145327065572
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 14372,
       "carto_file_hit": true,
-      "carto_symbol_hit": false,
-      "carto_tokens": 273,
+      "carto_symbol_hit": true,
+      "carto_tokens": 708,
       "class": "where-is",
       "id": "where-status-transitions",
-      "reduction_pct": 98.10047314222099
+      "reduction_pct": 95.07375452268299
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 15179,
-      "carto_file_hit": false,
-      "carto_symbol_hit": false,
-      "carto_tokens": 273,
+      "carto_file_hit": true,
+      "carto_symbol_hit": true,
+      "carto_tokens": 649,
       "class": "where-is",
       "id": "where-search-index",
-      "reduction_pct": 98.20146254693985
+      "reduction_pct": 95.72435601818302
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 14816,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 254,
+      "carto_tokens": 468,
       "class": "where-is",
       "id": "where-error-status-map",
-      "reduction_pct": 98.28563714902808
+      "reduction_pct": 96.84125269978402
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 12750,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 253,
+      "carto_tokens": 565,
       "class": "where-is",
       "id": "where-router-dispatch",
-      "reduction_pct": 98.0156862745098
+      "reduction_pct": 95.56862745098039
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 16062,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 547,
+      "carto_tokens": 650,
       "class": "what-breaks",
       "id": "impact-paginate-callers",
-      "reduction_pct": 96.59444651973602
+      "reduction_pct": 95.95318142198978
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 16946,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 1701,
+      "carto_tokens": 1997,
       "class": "what-breaks",
       "id": "impact-task-interface",
-      "reduction_pct": 89.96223297533341
+      "reduction_pct": 88.21550808450371
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 15404,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 1218,
+      "carto_tokens": 1679,
       "class": "what-breaks",
       "id": "impact-result-type",
-      "reduction_pct": 92.09296286678786
+      "reduction_pct": 89.10023370553102
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 13958,
       "carto_file_hit": true,
       "carto_symbol_hit": true,
-      "carto_tokens": 642,
+      "carto_tokens": 306,
       "class": "what-breaks",
       "id": "impact-domain-error",
-      "reduction_pct": 95.40048717581315
+      "reduction_pct": 97.80770884080813
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 16554,
       "carto_file_hit": true,
       "carto_symbol_hit": false,
-      "carto_tokens": 231,
+      "carto_tokens": 470,
       "class": "bug-localize",
       "id": "bug-pagination-offbyone",
-      "reduction_pct": 98.60456687205509
+      "reduction_pct": 97.16080705569651
     },
     {
       "baseline_file_hit": true,
       "baseline_tokens": 16752,
       "carto_file_hit": true,
       "carto_symbol_hit": false,
-      "carto_tokens": 253,
+      "carto_tokens": 914,
       "class": "bug-localize",
       "id": "bug-pagination-via-list",
-      "reduction_pct": 98.48973256924546
+      "reduction_pct": 94.54393505253104
     }
   ]
 }

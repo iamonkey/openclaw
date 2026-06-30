@@ -8,5 +8,6 @@ license.workspace = true
 carto-model = { workspace = true }
 carto-store = { workspace = true }
 anyhow = { workspace = true }
-# git2 is added by the H3 implementation work item; version/features resolved
-# empirically against the toolchain (vendored libgit2 if no system lib).
+# git2 for history mining (H3). `vendored-libgit2` builds libgit2 from source so
+# we don't depend on a system lib being present.
+git2 = { version = "0.19", default-features = false, features = ["vendored-libgit2"] }

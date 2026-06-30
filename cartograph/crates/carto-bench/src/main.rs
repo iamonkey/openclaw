@@ -1,9 +1,11 @@
-//! `carto-bench` — efficiency-frontier benchmark for the H1/H2 vertical slice.
+//! `carto-bench` — efficiency-frontier benchmark for the full H1-H5 stack.
 //!
-//! Compares Cartograph lazy hydration against the "naive grep + full-file"
-//! baseline (`11-benchmark-harness.md`) on a fixed corpus + task set:
-//!   - Token Cost (TC): tokens an agent must read to locate+read the target.
-//!   - Task Resolution / localization@k: does the right symbol/file surface.
+//! Compares Cartograph against the "naive grep + full-file" baseline
+//! (`11-benchmark-harness.md`) on a fixed corpus + task set. The Cartograph
+//! path routes every task through the H5 planner (which composes H1 outline/
+//! expand, H2 search/rank, and H3 impact under a token budget):
+//!   - Token Cost (TC): tokens in the planner's budgeted hydrated context.
+//!   - Task Resolution: did the answer symbol/file land in that context.
 //!   - Sync Overhead (SO): index build time + per-query latency p50/p95.
 //!
 //! v1 caveat: SO uses full-build time (incremental `apply()` is a later
@@ -40,7 +42,8 @@ struct TaskResult {
     reduction_pct: f64,
 }
 
-const TOPK: usize = 10;
+/// Per-task token budget handed to the H5 planner.
+const PLAN_BUDGET: i64 = 2000;
 const STOPWORDS: &[&str] = &[
     "where",
     "what",
@@ -139,62 +142,30 @@ fn main() -> Result<()> {
             }
         }
 
-        // Carto: search symbols (locate), then read just the top candidate.
+        // Carto: route the whole task through the H5 planner, which composes
+        // H1 (outline/expand), H2 (search/rank) and H3 (impact) under a fixed
+        // token budget. The agent's realized cost is the plan's hydrated
+        // context; localization = did the answer land in that context.
         let q0 = Instant::now();
-        let mut matches: Vec<carto_model::Symbol> = Vec::new();
-        let mut seen = BTreeSet::new();
-        for term in &terms {
-            for s in reader.search(term, TOPK as i64)? {
-                if seen.insert(s.stable_key.clone()) {
-                    matches.push(s);
-                }
-            }
-        }
-        matches.sort_by(|a, b| b.rank.total_cmp(&a.rank));
-        matches.truncate(TOPK);
-
-        // Tokens the agent reads to LOCATE: the rendered match list (key + sig).
-        let locate_tokens: i64 = matches
-            .iter()
-            .map(|s| {
-                estimate_tokens(&format!(
-                    "{} {}",
-                    s.stable_key,
-                    s.signature.as_deref().unwrap_or("")
-                ))
-            })
-            .sum();
-
-        // Tokens to READ the chosen target: expand the best match (or the
-        // ground-truth symbol's neighborhood for what-breaks).
-        let mut read_tokens = 0i64;
-        if task.class == "what-breaks" {
-            // impact proxy: neighborhood signatures of the best match
-            if let Some(best) = matches.first() {
-                let nb = reader.neighborhood(&best.stable_key, 2)?;
-                read_tokens = nb
-                    .iter()
-                    .map(|(s, _)| {
-                        estimate_tokens(s.signature.as_deref().unwrap_or(s.name.as_str()))
-                    })
-                    .sum();
-            }
-        } else if let Some(best) = matches.first() {
-            read_tokens = reader.expand(&best.stable_key)?.token_est;
-        }
+        let plan = reader.plan(&task.query, PLAN_BUDGET, false)?;
         latencies_ms.push(q0.elapsed().as_secs_f64() * 1000.0);
+        let carto_tokens = plan.spent_est;
 
-        let carto_tokens = locate_tokens + read_tokens;
-        let match_keys: BTreeSet<&str> = matches.iter().map(|s| s.stable_key.as_str()).collect();
+        // Concatenate the hydrated context the agent would actually receive.
+        let ctx_text: String = plan
+            .context
+            .iter()
+            .map(|c| c.text.as_str())
+            .collect::<Vec<_>>()
+            .join("\n");
         let carto_symbol_hit = task
             .answer_symbols
             .iter()
-            .any(|a| match_keys.contains(a.as_str()));
-        let match_files: BTreeSet<String> = matches
+            .any(|a| ctx_text.contains(a.as_str()));
+        let carto_file_hit = task
+            .answer_files
             .iter()
-            .map(|s| s.stable_key.split('#').next().unwrap_or("").to_string())
-            .collect();
-        let carto_file_hit = task.answer_files.iter().any(|a| match_files.contains(a));
+            .any(|a| ctx_text.contains(a.as_str()));
 
         let reduction_pct = if baseline_tokens > 0 {
             100.0 * (1.0 - carto_tokens as f64 / baseline_tokens as f64)
@@ -338,7 +309,7 @@ fn render_report(
     let total = results.len();
 
     let mut s = String::new();
-    s.push_str("# Cartograph Benchmark Report (H1+H2 vertical slice)\n\n");
+    s.push_str("# Cartograph Benchmark Report (H1-H5)\n\n");
     s.push_str(&format!("Corpus: `{}`\n\n", corpus.display()));
     s.push_str("## Corpus and index\n\n");
     s.push_str("| metric | value |\n|---|---|\n");
@@ -367,12 +338,15 @@ fn render_report(
         }
     ));
 
-    s.push_str("## Task resolution (localization)\n\n");
+    s.push_str("## Task resolution (localization via H5 planner)\n\n");
     s.push_str(&format!(
-        "- Cartograph symbol-localization@{TOPK}: {carto_sym_hits}/{total}\n"
+        "Answer present in the H5 plan's budget-constrained context (budget {PLAN_BUDGET} tokens):\n\n"
     ));
     s.push_str(&format!(
-        "- Cartograph file-localization@{TOPK}: {carto_file_hits}/{total}\n"
+        "- Cartograph symbol-localization: {carto_sym_hits}/{total}\n"
+    ));
+    s.push_str(&format!(
+        "- Cartograph file-localization: {carto_file_hits}/{total}\n"
     ));
     s.push_str(&format!(
         "- Baseline file-localization (grep): {base_file_hits}/{total}\n\n"
